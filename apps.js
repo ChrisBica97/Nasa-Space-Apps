@@ -11,12 +11,12 @@ const C=(day=S.day,cr=crewOf())=>{const e=ENVS[S.env],k=cfg(cr.id);return{d:day,
 const refText=p=>p.dir==="none"?"Sin umbral definido":`Base ${fmt(p,p.base)} · Precaución ${p.dir==="lt"?"≤":"≥"} ${fmt(p,p.y)} · Alerta ${p.dir==="lt"?"≤":"≥"} ${fmt(p,p.r)}`;
 const SC=["#2ee6a6","#ffb547","#ff6b6b","#6d788f"];
 /* ---------- StorageManager ---------- */
-const Store={K:"orbital_logs_v4",all(){try{return JSON.parse(localStorage.getItem(this.K)||"{}")}catch(e){return{}}},days(c){return this.all()[c]||{}},get(c,d){return this.days(c)[d]},
-put(c,d,patch){try{const a=this.all(),r=(a[c]=a[c]||{})[d]=a[c][d]||{v:{},t:{}};Object.assign(r.v,patch.v||{});Object.assign(r.t,patch.t||{});if(patch.n!=null)r.n=patch.n;localStorage.setItem(this.K,JSON.stringify(a))}catch(e){}},
+const Store={K:"orbital_logs_v4",ver:0,_r:null,_o:{},all(){try{const r=localStorage.getItem(this.K)||"{}";if(r!==this._r){this._o=JSON.parse(r);this._r=r}return this._o}catch(e){return{}}},days(c){return this.all()[c]||{}},get(c,d){return this.days(c)[d]},
+put(c,d,patch){try{const a=this.all(),r=(a[c]=a[c]||{})[d]=a[c][d]||{v:{},t:{}};Object.assign(r.v,patch.v||{});Object.assign(r.t,patch.t||{});if(patch.n!=null)r.n=patch.n;(localStorage.setItem(this.K,JSON.stringify(a)),Store.ver++)}catch(e){}},
 /* guarda (o reemplaza) los valores de una sola zona del cuerpo en un día; los campos vacíos se eliminan */
 setZone(c,d,zid,v,n){try{const a=this.all(),r=(a[c]=a[c]||{})[d]=a[c][d]||{v:{},t:{}};Object.keys(r.v).forEach(k=>{if(k.indexOf(zid+".")===0)delete r.v[k]});Object.assign(r.v,v);r.zn=r.zn||{};if(n)r.zn[zid]=n;else delete r.zn[zid];
-if(!Object.keys(r.v).length&&!Object.keys(r.t||{}).length&&!Object.keys(r.zn).length&&!r.n)delete a[c][d];localStorage.setItem(this.K,JSON.stringify(a))}catch(e){}},
-del(c,d){try{const a=this.all();if(a[c])delete a[c][d];localStorage.setItem(this.K,JSON.stringify(a))}catch(e){}}};
+if(!Object.keys(r.v).length&&!Object.keys(r.t||{}).length&&!Object.keys(r.zn).length&&!r.n)delete a[c][d];(localStorage.setItem(this.K,JSON.stringify(a)),Store.ver++)}catch(e){}},
+del(c,d){try{const a=this.all();if(a[c])delete a[c][d];(localStorage.setItem(this.K,JSON.stringify(a)),Store.ver++)}catch(e){}}};
 /* ---------- PhysiologyEngine ---------- */
 const Engine={ev(z,c=C(),cid=S.crew){const rec=Store.get(cid,S.day),rows=z.p.map(p=>{const k=z.id+"."+p.id,real=!!(rec&&rec.v&&rec.v[k]!=null),v=real?rec.v[k]:p.v(c);return{p,v,real,s:stat(p,v),sv:sev(p,v)}});return{rows,st:rows.length?Math.max(...rows.map(r=>r.s)):3,real:rows.some(r=>r.real)}},
 alerts(cr=crewOf()){const o=[];ZONES.forEach(z=>this.ev(z,C(S.day,cr),cr.id).rows.forEach(r=>{if(r.s>0)o.push({z,r})}));return o},
@@ -32,7 +32,7 @@ let st=0;for(let d=S.day;d>=0&&days[d];d--)st++;
 const b=[["🚀","Primer registro",xp>0],["🔥","Racha de 3 días",st>=3],["🧠","Cerebro de acero (≥ 85)",cog>=85],["⚡","Reflejos (≥ 8)",rs>=8],["🏅","5 pruebas completadas",tests>=5]];return{xp,lv:Math.floor(xp/100)+1,pct:xp%100,st,b}}};
 /* ---------- gráfico de línea (modelo + datos reales + otros tripulantes) ---------- */
 let UID=0;
-function lineChart(z,p,o={}){const W=o.w||340,H=o.h||170,L=o.mini?30:34,R=8,T=10,B=22,cr=crewOf(),key=z.id+"."+p.id,id="lg"+(UID++);
+function lineChartRaw(z,p,o={}){const W=o.w||340,H=o.h||170,L=o.mini?30:34,R=8,T=10,B=22,cr=crewOf(),key=z.id+"."+p.id,id="lg"+(UID++);
 const model=[];for(let d=0;d<=300;d+=5)model.push([d,p.v(C(d,cr))]);
 const real=Object.entries(Store.days(cr.id)).filter(([d,r])=>r.v&&r.v[key]!=null).map(([d,r])=>[+d,r.v[key]]).sort((a,b)=>a[0]-b[0]);
 const others=o.cmp?CREW.filter(x=>x.id!==cr.id).map(x=>({x,pts:model.map(m=>[m[0],p.v(C(m[0],x))])})):[];
@@ -47,6 +47,10 @@ const rec=Store.get(cr.id,S.day),isReal=!!(rec&&rec.v&&rec.v[key]!=null),cv=isRe
 const grid=[mn,(mn+mx)/2,mx].map(v=>`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#8cb4ff" stroke-opacity=".1"/><text x="${L-4}" y="${Y(v)+3}" text-anchor="end" fill="#8d9bb8" font-size="9">${tk(v)}</text>`).join("");
 const xt=[0,100,200,300].map(d=>`<line x1="${X(d)}" x2="${X(d)}" y1="${T}" y2="${H-B}" stroke="#8cb4ff" stroke-opacity=".07"/><text x="${X(d)}" y="${H-7}" text-anchor="${d===0?"start":d===300?"end":"middle"}" fill="#8d9bb8" font-size="9">${d===0?"Día 0":d}</text>`).join("");
 return`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Evolución de ${esc(p.n)} de ${esc(cr.name)}"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${cr.col}" stop-opacity=".28"/><stop offset="1" stop-color="${cr.col}" stop-opacity="0"/></linearGradient></defs>${bands}${grid}${xt}${th(p.base,"#7fb2ff")}${th(p.y,SC[1])}${th(p.r,SC[2])}<path d="${area}" fill="url(#${id})"/>${others.map(q=>`<polyline fill="none" stroke="${q.x.col}" stroke-opacity=".7" stroke-width="1.4" stroke-dasharray="3 3" points="${pl(q.pts)}"/>`).join("")}<polyline fill="none" stroke="${cr.col}" stroke-width="2.2" stroke-linejoin="round" points="${pl(model)}"/>${real.length>1?`<polyline fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="1.6" points="${pl(real)}"/>`:""}${real.map(a=>`<circle cx="${X(a[0])}" cy="${Y(a[1])}" r="3.8" fill="${SC[stat(p,a[1])<0?0:stat(p,a[1])]}" stroke="#fff" stroke-width="1.2"><title>Día ${a[0]}: ${fmt(p,a[1])} ${esc(p.u)}</title></circle>`).join("")}<line x1="${X(S.day)}" x2="${X(S.day)}" y1="${T}" y2="${H-B}" stroke="#fff" stroke-opacity=".4"/><circle cx="${X(S.day)}" cy="${Y(cv)}" r="4.6" fill="${col}" stroke="#060912" stroke-width="2"/></svg>`}
+const MEMO=new Map(),memo=(k,f)=>{let v=MEMO.get(k);if(v===undefined){if(MEMO.size>400)MEMO.clear();MEMO.set(k,v=f())}return v};
+const dsig=()=>{const k=cfg();return[S.crew,S.env,k.adh,k.vas,S.day,Store.ver].join("|")};
+/* el SVG solo se recalcula si cambia tripulante, entorno, ejercicio, dolor, día o registros */
+const lineChart=(z,p,o={})=>memo(["lc",z.id,p.id,o.w,o.h,o.mini?1:0,o.cmp?1:0,dsig()].join("|"),()=>lineChartRaw(z,p,o));
 const chart=(z,p)=>lineChart(z,p,{w:320,h:170,cmp:S.cmp});
 /* ---------- vistas ---------- */
 function insp(z){const e=Engine.ev(z),pi=Math.min(S.par[z.id]||0,Math.max(0,z.p.length-1)),pr=z.p[pi];
@@ -54,7 +58,7 @@ return`<div class="rw" style="justify-content:space-between"><b>${z.n}</b><span 
 ${e.rows.length?`<div class="pl">${e.rows.map((r,i)=>`<button class="pr ${i===pi?"on":""}" data-p="${i}"><span>${r.p.n}${r.real?' <i class="src r">Dato real</i>':""}</span><b class="mono">${fmt(r.p,r.v)} <em>${r.p.u}</em></b>${r.p.dir==="none"?"":`<span class="t${r.s}"><span class="bar"><i style="width:${r.sv*100}%"></i></span></span>`}</button>`).join("")}</div>${chart(z,pr)}<div class="lg"><span style="color:#7fb2ff">- - Base en Tierra ${fmt(pr,pr.base)}</span><span style="color:var(--warn)">- - Precaución</span><span style="color:var(--bad)">- - Alerta</span><span>━ Modelo</span><span style="color:#fff">● Real</span></div>`:`<p style="color:var(--mu);font-size:13px">${z.txt}</p>`}
 <details><summary>Ver detalle clínico</summary><p>${z.txt}</p><p>Fuente de datos: ${z.src}</p></details>${z.tab!=="mente"&&z.p.length?`<button class="btn o sm" data-reg="${z.id}" style="margin-top:10px">Registrar datos de esta zona</button>`:""}`}
 function cards(zs,sel,btn){return zs.map(z=>{const x=Engine.ev(z),f=x.rows[0];return`<div class="card ${z.id===sel?"sel":""}" data-z="${z.id}" role="button" tabindex="0"><small>${z.n}</small>${f?`<div class="v mono">${fmt(f.p,f.v)} <em>${f.p.u}</em></div>`:`<div class="v mono">—</div>`}${bd(x.st)} <span class="src ${x.real?"r":""}">${x.real?"Dato real":"Modelo"}</span><small style="display:block;margin:6px 0">${z.txt.split(". ")[0].slice(0,110)}</small>${btn&&x.rows.length?`<button class="btn sm" data-open="${z.id}">Iniciar registro</button>`:""}</div>`}).join("")}
-const zoneFig=(tab,zs,sel)=>figure(tab,id=>{const z=zs.find(q=>q.id===id),st=Engine.ev(z).st;return"s"+st+(id===sel.id?" sel":"")});
+const zoneFig=(tab,zs,sel)=>{const cls={};zs.forEach(z=>cls[z.id]="s"+Engine.ev(z).st+(z.id===sel.id?" sel":""));return memo("fig|"+tab+"|"+JSON.stringify(cls),()=>figure(tab,id=>cls[id]))};
 const legend=()=>`<div class="lg" style="justify-content:center">${SN.map((n,i)=>`<span class="t${i}">● ${n}</span>`).join("")}</div>`;
 function viewBody(tab){const t=TABS.find(x=>x.id===tab),zs=ZONES.filter(z=>z.tab===tab),sel=zs.find(z=>z.id===S.sel[tab])||zs[0];S.sel[tab]=sel.id;
 return`<div class="two fig"><div class="g pn"><div class="svgw" id="svgw">${zoneFig(tab,zs,sel)}</div>${legend()}</div><div class="g pn" id="insp">${insp(sel)}</div></div>
@@ -62,9 +66,9 @@ return`<div class="two fig"><div class="g pn"><div class="svgw" id="svgw">${zone
 function viewTests(){const zs=ZONES.filter(z=>z.tab==="mente"),sel=zs.find(z=>z.id===S.sel.mente)||zs[0];S.sel.mente=sel.id;
 return`<div class="g pn"><p style="margin:0 0 10px;color:var(--mu);font-size:13px">${TABS.find(t=>t.id==="mente").cm} Cada tarjeta abre su prueba; los resultados se guardan como “Dato real” del día ${S.day}.</p><div class="rw"><button class="ib" data-r="cards" data-d="-1" aria-label="Anterior">‹</button><div class="rail" id="cards">${cards(zs,sel.id,1)}</div><button class="ib" data-r="cards" data-d="1" aria-label="Siguiente">›</button></div></div><div class="g pn" id="insp">${insp(sel)}</div>
 <div class="g pn"><b>Protocolo de prueba de esfuerzo (CEVIS)</b><details open><summary>Ver las 8 fases</summary><div style="overflow-x:auto"><table class="tb"><tr><th>Fase</th><th>Duración</th><th>Carga</th><th>Cadencia</th><th>Objetivo</th></tr>${CPET.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</table></div></details></div>`}
-function viewRisks(){return`<div class="g pn"><b>Los 5 peligros del Programa de Investigación Humana de la NASA</b><p style="color:var(--mu);font-size:13px">Cada peligro se traduce en indicadores que el tripulante puede medir. ${esc(ENVS[S.env].note)}</p><div class="rail" style="flex-wrap:wrap;overflow:visible">${HAZARDS.map(h=>`<div class="card" style="width:min(100%,360px)"><div style="font-size:26px">${h.ic}</div><b>${h.n}</b><p style="font-size:13px;color:var(--mu);margin:6px 0">${h.eff}</p><details><summary>Indicadores y cuándo pedir ayuda</summary><p><b style="color:var(--tx)">Indicadores:</b> ${h.ind}</p><p><b style="color:var(--tx)">Pedir ayuda:</b> ${h.call}</p><p><b style="color:var(--tx)">Prevención:</b> ${h.prev}</p></details><button class="btn o sm" data-go="${h.go}" style="margin-top:8px">Ver en la app</button></div>`).join("")}</div></div>
-<div class="g pn"><b>Guía rápida de indicadores</b>${GUIDE.map(g=>`<details><summary>${g[0]}</summary><p>${g[1]}</p></details>`).join("")}</div>
-<div class="g pn"><b>Recursos oficiales</b><ul>${LINKS.map(l=>`<li><a href="${l[1]}" target="_blank" rel="noopener">${l[0]}</a></li>`).join("")}</ul></div>`}
+function viewRisks(){return`<div class="g pn" id="hz"><b>Los 5 peligros del Programa de Investigación Humana de la NASA</b><p style="color:var(--mu);font-size:13px">Cada peligro se traduce en indicadores que el tripulante puede medir. ${esc(ENVS[S.env].note)}</p><div class="rail" style="flex-wrap:wrap;overflow:visible">${HAZARDS.map(h=>`<div class="card" style="width:min(100%,360px)"><div style="font-size:26px">${h.ic}</div><b>${h.n}</b><p style="font-size:13px;color:var(--mu);margin:6px 0">${h.eff}</p><details><summary>Indicadores y cuándo pedir ayuda</summary><p><b style="color:var(--tx)">Indicadores:</b> ${h.ind}</p><p><b style="color:var(--tx)">Pedir ayuda:</b> ${h.call}</p><p><b style="color:var(--tx)">Prevención:</b> ${h.prev}</p></details><button class="btn o sm" data-go="${h.go}" style="margin-top:8px">Ver en la app</button></div>`).join("")}</div></div>
+<div class="g pn" id="guia"><b>Guía rápida de indicadores</b>${GUIDE.map(g=>`<details><summary>${g[0]}</summary><p>${g[1]}</p></details>`).join("")}</div>
+<div class="g pn" id="rec"><b>Recursos oficiales</b><ul>${LINKS.map(l=>`<li><a href="${l[1]}" target="_blank" rel="noopener">${l[0]}</a></li>`).join("")}</ul></div>`}
 /* --- panel principal: selector de tripulante + gráficos de línea de cada estado de salud --- */
 function viewPanel(){const cr=crewOf(),items=PANEL.filter(a=>S.cat==="all"||a[2]===S.cat);
 const cc=CREW.map(x=>{const sm=Engine.summary(x),g=Engine.gam(x);return`<button class="cc ${x.id===S.crew?"on":""}" data-c="${x.id}" style="--cc:${x.col}" aria-pressed="${x.id===S.crew}"><div class="av" style="background:${x.col};color:#06101f">${x.name.split(" ")[1][0]}</div><div class="ci"><b>${x.name}</b><span>${x.role}</span><div class="mini">${sm.n.map((v,i)=>`<i class="t${i}">${v} ${["normal","precaución","alerta"][i]}</i>`).join("")}</div></div><div class="lv mono">Nv ${g.lv}</div></button>`}).join("");
@@ -92,29 +96,29 @@ return`<div class="g pn"><div class="rw" style="justify-content:space-between;fl
 <div class="row" style="margin-top:10px;justify-content:center">${zs.map(z=>{const st=Engine.ev(z).st;return`<button class="chip zc ${z.id===sel.id?"on":""}" data-z="${z.id}"><i class="t${st}">●</i> ${z.n.split(" (")[0]}</button>`}).join("")}</div></div>
 <div style="display:grid;gap:12px;align-content:start"><div class="g pn" id="regform">${regForm(sel)}</div>${regHistory(sel)}</div></div>
 <div class="g pn"><b>Pruebas y autorregistros del día ${S.day}</b><p style="margin:2px 0 10px;color:var(--mu);font-size:13px">Sueño, memoria, reacción, ánimo y esfuerzo se registran con sus propias pruebas.</p><div class="rw"><button class="ib" data-r="cards" data-d="-1" aria-label="Anterior">‹</button><div class="rail" id="cards">${cards(ZONES.filter(z=>z.tab==="mente"),"",1)}</div><button class="ib" data-r="cards" data-d="1" aria-label="Siguiente">›</button></div></div>`}
-function render(anim){const cr=crewOf(),al=Engine.alerts(),cx=Engine.cross(al),gm=Engine.gam(),sm=Engine.summary(cr),n=sm.n,w=sm.w,k=cfg();
+function renderChrome(){const cr=crewOf(),al=Engine.alerts(),cx=Engine.cross(al),gm=Engine.gam(),sm=Engine.summary(cr),n=sm.n,w=sm.w,k=cfg();
 $("dd").textContent=S.day;$("day").value=S.day;for(const i of["env","env2"])$(i).value=S.env;$("envnote").textContent=ENVS[S.env].note+" Latencia de comunicación: "+ENVS[S.env].lat+".";$("adh").value=k.adh;$("adho").textContent=k.adh+" %";$("vas").value=k.vas;$("vaso").textContent=k.vas;
 $("crew").innerHTML=CREW.map(x=>`<button class="crew ${x.id===S.crew?"on":""}" data-c="${x.id}"><div class="av" style="background:${x.col};color:#06101f">${x.name.split(" ")[1][0]}</div><div><b>${x.name}</b><span>${x.role}</span></div></button>`).join("");
 $("hero").innerHTML=`<div>${bd(w)}<h2>${cr.name}</h2><p>${cr.role} · ${cr.bio}</p></div><div class="kp">${n.map((v,i)=>`<div><small>${SN[i]}</small><b class="mono t${i}">${v}</b></div>`).join("")}<div style="min-width:150px"><small>Nivel ${gm.lv} · racha ${gm.st} d</small><div class="xp"><i style="width:${gm.pct}%"></i></div><span style="font-size:18px">${gm.b.map(b=>`<span title="${b[1]}" style="opacity:${b[2]?1:.25}">${b[0]}</span>`).join(" ")}</span></div></div>
 <details style="width:100%"><summary>Alertas activas (${al.length})</summary>${al.length?al.map(a=>`<p>${bd(a.r.s)} ${a.z.n} · ${a.r.p.n}: <b class="mono">${fmt(a.r.p,a.r.v)} ${a.r.p.u}</b></p>`).join(""):"<p>Sin alertas: todos los parámetros están dentro de lo esperado.</p>"}${cx.map(t=>`<p class="t1">⚠ ${t}</p>`).join("")}</details>`;
 $("tabs").innerHTML=TABS.map(t=>`<button class="tab ${t.id===S.tab?"on":""}" data-t="${t.id}">${t.ic} ${t.n}</button>`).join("");
-const stg=$("stage"),sy=window.scrollY,fo=document.activeElement&&document.activeElement.id;
-stg.innerHTML=S.tab==="panel"?viewPanel():S.tab==="registro"?viewRegistro():S.tab==="mente"?viewTests():S.tab==="riesgos"?viewRisks():viewBody(S.tab);if(anim){stg.classList.remove("anim");void stg.offsetWidth;stg.classList.add("anim")}}
-function State(p,a){Object.assign(S,p);render(a)}
+}
+function render(){Nav.render()}
+function State(p){Object.assign(S,p);Nav.render()}
 function toast(t){const e=$("toast");e.textContent=t;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1900)}
 /* ---------- eventos ---------- */
 const tip=$("tip");
 document.addEventListener("click",e=>{const t=e.target.closest("[data-t],[data-open],[data-z],[data-c],[data-r],[data-p],[data-go],[data-gz],[data-cat],[data-cmp],[data-rl],[data-reg],[data-day],#zsv,#zdel");if(!t)return;const d=t.dataset;
 if(t.id==="zsv")return saveZone();if(t.id==="zdel")return delZone();
 if(d.open)return openTest(d.open);
-if(d.t)State({tab:d.t},1);else if(d.go)State({tab:d.go},1);
-else if(d.gz){const[zi,ix]=d.gz.split(":"),z=ZONES.find(q=>q.id===zi);S.sel[z.tab]=zi;S.par[zi]=+ix;State({tab:z.tab},1);scrollTo({top:0,behavior:"smooth"})}
+if(d.t)Nav.go({tab:d.t,quiet:1});else if(d.go)Nav.go({tab:d.go});
+else if(d.gz){const[zi,ix]=d.gz.split(":"),z=ZONES.find(q=>q.id===zi);Nav.go({tab:z.tab,z:zi,p:+ix})}
 else if(d.cat)State({cat:d.cat});else if(d.cmp)State({cmp:S.cmp?0:1});
-else if(d.rl){State({rl:d.rl},1)}
-else if(d.reg){const z=ZONES.find(q=>q.id===d.reg);S.sel[z.tab]=z.id;State({tab:"registro",rl:z.tab},1);scrollTo({top:0,behavior:"smooth"})}
+else if(d.rl){Nav.go({tab:"registro",rl:d.rl,quiet:1})}
+else if(d.reg){const z=ZONES.find(q=>q.id===d.reg);Nav.go({tab:"registro",rl:z.tab,z:z.id})}
 else if(d.day!=null)State({day:+d.day});
-else if(d.z){S.sel[layer()]=d.z;render()}else if(d.p!=null){S.par[S.sel[layer()]]=+d.p;render()}
-else if(d.c){State({crew:d.c},S.tab!=="panel");closeDrawer()}else if(d.r)$(d.r).scrollBy({left:d.d*260,behavior:"smooth"})});
+else if(d.z)Nav.pick(d.z);else if(d.p!=null)Nav.par(+d.p)
+else if(d.c){State({crew:d.c});closeDrawer()}else if(d.r)$(d.r).scrollBy({left:d.d*260,behavior:"smooth"})});
 document.addEventListener("keydown",e=>{const el=e.target;if((e.key==="Enter"||e.key===" ")&&el.dataset&&(el.dataset.z||el.dataset.gz)&&!/INPUT|TEXTAREA|SELECT/.test(el.tagName)){e.preventDefault();el.click()}});
 document.addEventListener("pointermove",e=>{const z=e.target.closest&&e.target.closest("svg .z");if(!z){tip.style.display="none";return}const zz=ZONES.find(q=>q.id===z.dataset.z&&q.tab===layer());if(!zz)return;const x=Engine.ev(zz),f=x.rows[0];
 tip.innerHTML=`${zz.n}${f?`: <b>${fmt(f.p,f.v)} ${f.p.u}</b>`:""} · ${SN[x.st]}`;tip.style.display="block";tip.style.left=Math.min(e.clientX+12,innerWidth-260)+"px";tip.style.top=e.clientY+14+"px"});
@@ -124,10 +128,10 @@ document.addEventListener("change",e=>{if(e.target.id==="fday")State({day:clamp(
 function saveZone(){const z=ZONES.find(q=>q.id===S.sel[S.rl]),d=clamp(Math.round(+$("fday").value||0),0,300),v={};document.querySelectorAll("[data-f]").forEach(i=>{if(i.value!==""&&!isNaN(parseFloat(i.value)))v[i.dataset.f]=parseFloat(i.value)});const n=$("zn").value.trim();
 if(!Object.keys(v).length&&!n)return toast("Ingresa al menos un valor");S.day=d;Store.setZone(S.crew,d,z.id,v,n);render();toast("Registro de "+z.n.split(" (")[0]+" guardado")}
 function delZone(){const z=ZONES.find(q=>q.id===S.sel[S.rl]),d=clamp(Math.round(+$("fday").value||0),0,300);Store.setZone(S.crew,d,z.id,{},"");render();toast("Registro de la zona borrado")}
-const openDrawer=()=>{$("drawer").classList.add("open");$("scrim").classList.add("on")},closeDrawer=()=>{$("drawer").classList.remove("open");$("scrim").classList.remove("on")};
+const openDrawer=()=>Nav.open(),closeDrawer=()=>Nav.close();
 $("hb").onclick=openDrawer;$("scrim").onclick=closeDrawer;$("day").oninput=e=>State({day:+e.target.value});$("adh").oninput=e=>{cfg().adh=+e.target.value;render()};$("vas").oninput=e=>{cfg().vas=+e.target.value;render()};
-for(const i of["env","env2"]){$(i).innerHTML=Object.entries(ENVS).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join("");$(i).onchange=e=>State({env:e.target.value},1)}
-$("log").onclick=()=>{State({tab:"registro"},1);scrollTo({top:0,behavior:"smooth"})};
+for(const i of["env","env2"]){$(i).innerHTML=Object.entries(ENVS).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join("");$(i).onchange=e=>State({env:e.target.value})}
+$("log").onclick=()=>Nav.go({tab:"registro"});
 /* ---------- diálogo y utilidades de pruebas ---------- */
 let TM=[];const later=(f,ms)=>TM.push(setTimeout(f,ms)),clr=()=>{TM.forEach(clearTimeout);TM=[]};
 const dlg=$("dlg");dlg.addEventListener("close",()=>{clr();render()});
@@ -183,4 +187,3 @@ ${num("vo2","VO₂máx estimado (mL/kg/min)")}${num("awe","Eficiencia aeróbica 
 $("go").onclick=()=>{const g=V,r=cpetCheck({age:crewOf().age,hr:g("hr")||0,spo2:g("spo2")||98,spo2b:g("spo2b")||98,ptc:g("ptc")||0,sbp:g("sbp")||0,dbp:g("dbp")||0,sbpPrev:g("sbpP"),sym:$("sym").value==="1"});
 const m={};[["vo2","vo2"],["awe","awe"],["pw","pw"],["hrr","hrr"],["borg","borg"],["ptc","co2"]].forEach(([a,b])=>{const x=g(a);if(x!=null)m["esfuerzo."+b]=x});if(Object.keys(m).length)save(m,{cpet:{stop:r}},"Prueba guardada");
 $("res").innerHTML=r.length?alertBox(2,"<b>DETENER AHORA</b>: pasar a la Fase 6 (recuperación activa a 40 W).<br>• "+r.join("<br>• ")):alertBox(0,"Sin criterios de detención. Continuar el protocolo.")}}
-render(1);
